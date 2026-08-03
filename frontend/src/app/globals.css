@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-tv-bg text-tv-text font-sans antialiased selection:bg-tv-blue selection:text-white overflow-x-hidden;
+  }
+}
+
+/* Custom TradingView Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d1117;
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Pulse Glowing Animation Utilities */
+.glow-green {
+  box-shadow: 0 0 15px rgba(8, 153, 129, 0.4);
+}
+
+.glow-red {
+  box-shadow: 0 0 15px rgba(242, 54, 69, 0.4);
+}
+
+.glow-blue {
+  box-shadow: 0 0 15px rgba(41, 98, 255, 0.4);
+}
+
+.glass-panel {
+  background: rgba(22, 27, 34, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+}

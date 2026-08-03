@@ -1,0 +1,330 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  USER
+  ANALYST
+  ADMIN
+}
+
+enum Chain {
+  ETHEREUM
+  SOLANA
+  ARBITRUM
+  BASE
+  BSC
+  HYPERLIQUID
+  BITCOIN
+  TRON
+}
+
+enum TransferFlowType {
+  WALLET_TO_WALLET
+  WALLET_TO_EXCHANGE
+  EXCHANGE_TO_WALLET
+  INTERNAL_EXCHANGE
+}
+
+enum LabelCategory {
+  CEX
+  DEX
+  MARKET_MAKER
+  VC_FUND
+  WHALE
+  SMART_MONEY
+  BOT
+}
+
+enum AlertEventType {
+  TRANSFER
+  EXCHANGE_DEPOSIT
+  EXCHANGE_WITHDRAWAL
+  HYPER_POSITION
+  SMART_MONEY_ACCUMULATION
+}
+
+enum PositionSide {
+  LONG
+  SHORT
+}
+
+enum OrderSide {
+  BUY
+  SELL
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+// 1. Users
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  firstName    String?   @map("first_name")
+  lastName     String?   @map("last_name")
+  role         Role      @default(USER)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  alerts        Alert[]
+  watchlists    Watchlist[]
+  notifications Notification[]
+  settings      Settings?
+  apiKeys       APIKey[]
+
+  @@map("users")
+}
+
+// 2. Wallets
+model Wallet {
+  id              String    @id @default(uuid())
+  address         String    @unique
+  chain           Chain
+  isSmartMoney    Boolean   @default(false) @map("is_smart_money")
+  smartMoneyScore Float?    @default(0.0) @map("smart_money_score")
+  winRate30d      Float?    @default(0.0) @map("win_rate_30d")
+  totalPnlUsd     Decimal?  @default(0.0) @map("total_pnl_usd") @db.Decimal(18, 2)
+  firstActiveAt   DateTime? @map("first_active_at")
+  lastActiveAt    DateTime? @map("last_active_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  walletLabels      WalletLabel[]
+  sentTransfers     Transfer[]       @relation("SentTransfers")
+  receivedTransfers Transfer[]       @relation("ReceivedTransfers")
+  hyperPositions    HyperPosition[]
+  hyperTrades       HyperTrade[]
+  watchlists        Watchlist[]
+
+  @@index([chain, address])
+  @@index([isSmartMoney, smartMoneyScore])
+  @@index([lastActiveAt])
+  @@map("wallets")
+}
+
+// 3. WalletLabels
+model WalletLabel {
+  id              String        @id @default(uuid())
+  walletId        String        @map("wallet_id")
+  label           String
+  category        LabelCategory
+  confidenceScore Float         @default(1.0) @map("confidence_score")
+  source          String        @default("manual")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([category])
+  @@index([label])
+  @@map("wallet_labels")
+}
+
+// 4. ExchangeLabels
+model ExchangeLabel {
+  id               String   @id @default(uuid())
+  exchangeName     String   @map("exchange_name")
+  hotWalletAddress String   @map("hot_wallet_address")
+  chain            Chain
+  depositTagPrefix String?  @map("deposit_tag_prefix")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([chain, hotWalletAddress])
+  @@index([exchangeName])
+  @@map("exchange_labels")
+}
+
+// 5. Transfers (High Volume Transfer Ledger)
+model Transfer {
+  id                   String           @id @default(uuid())
+  chain                Chain
+  blockNumber          BigInt           @map("block_number")
+  blockTimestamp       DateTime         @map("block_timestamp")
+  txHash               String           @map("tx_hash")
+  fromAddress          String           @map("from_address")
+  toAddress            String           @map("to_address")
+  fromWalletId         String?          @map("from_wallet_id")
+  toWalletId           String?          @map("to_wallet_id")
+  flowType             TransferFlowType @default(WALLET_TO_WALLET) @map("flow_type")
+  tokenAddress         String           @map("token_address")
+  tokenSymbol          String           @map("token_symbol")
+  rawAmount            Decimal          @map("raw_amount") @db.Decimal(36, 18)
+  amountUsd            Decimal          @map("amount_usd") @db.Decimal(18, 2)
+  isExchangeDeposit    Boolean          @default(false) @map("is_exchange_deposit")
+  isExchangeWithdrawal Boolean          @default(false) @map("is_exchange_withdrawal")
+  isSmartMoneyActivity Boolean          @default(false) @map("is_smart_money_activity")
+  isLargeTransfer      Boolean          @default(false) @map("is_large_transfer")
+  createdAt            DateTime         @default(now()) @map("created_at")
+
+  fromWallet Wallet? @relation("SentTransfers", fields: [fromWalletId], references: [id], onDelete: SetNull)
+  toWallet   Wallet? @relation("ReceivedTransfers", fields: [toWalletId], references: [id], onDelete: SetNull)
+
+  @@index([chain, blockTimestamp])
+  @@index([fromAddress, blockTimestamp])
+  @@index([toAddress, blockTimestamp])
+  @@index([flowType, amountUsd])
+  @@index([tokenAddress, amountUsd])
+  @@index([isExchangeDeposit, amountUsd])
+  @@index([isExchangeWithdrawal, amountUsd])
+  @@index([isSmartMoneyActivity, amountUsd])
+  @@index([isLargeTransfer, amountUsd])
+  @@index([txHash])
+  @@map("transfers")
+}
+
+// 6. Alerts
+model Alert {
+  id            String         @id @default(uuid())
+  userId        String         @map("user_id")
+  name          String
+  eventType     AlertEventType @map("event_type")
+  chain         Chain?
+  targetAddress String?        @map("target_address")
+  minAmountUsd  Decimal        @default(100000) @map("min_amount_usd") @db.Decimal(18, 2)
+  channels      Json           // Array e.g. ["TELEGRAM", "DISCORD", "WEBSOCKET"]
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([userId, isActive])
+  @@index([eventType, isActive])
+  @@map("alerts")
+}
+
+// 7. Watchlists
+model Watchlist {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  name          String
+  description   String?
+  walletId      String?  @map("wallet_id")
+  walletAddress String   @map("wallet_address")
+  chain         Chain
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([chain, walletAddress])
+  @@map("watchlists")
+}
+
+// 8. HyperPositions (Hyperliquid Whale Positions)
+model HyperPosition {
+  id               String       @id @default(uuid())
+  walletId         String?      @map("wallet_id")
+  userAddress      String       @map("user_address")
+  coin             String
+  positionSize     Decimal      @map("position_size") @db.Decimal(18, 6)
+  entryPrice       Decimal      @map("entry_price") @db.Decimal(18, 6)
+  markPrice        Decimal      @map("mark_price") @db.Decimal(18, 6)
+  liquidationPrice Decimal?     @map("liquidation_price") @db.Decimal(18, 6)
+  unrealizedPnl    Decimal      @map("unrealized_pnl") @db.Decimal(18, 2)
+  leverage         Int
+  side             PositionSide
+  isWhale          Boolean      @default(false) @map("is_whale")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  wallet Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@index([userAddress, coin])
+  @@index([coin, isWhale, positionSize])
+  @@index([updatedAt])
+  @@map("hyper_positions")
+}
+
+// 9. HyperTrades (Hyperliquid Fill History)
+model HyperTrade {
+  id             String    @id @default(uuid())
+  walletId       String?   @map("wallet_id")
+  userAddress    String    @map("user_address")
+  coin           String
+  side           OrderSide
+  price          Decimal   @map("price") @db.Decimal(18, 6)
+  size           Decimal   @map("size") @db.Decimal(18, 6)
+  usdValue       Decimal   @map("usd_value") @db.Decimal(18, 2)
+  fee            Decimal   @map("fee") @db.Decimal(18, 6)
+  tradeTimestamp DateTime  @map("trade_timestamp")
+  hash           String    @map("hash")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  wallet Wallet? @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
+  @@index([userAddress, tradeTimestamp])
+  @@index([coin, tradeTimestamp])
+  @@index([usdValue])
+  @@map("hyper_trades")
+}
+
+// 10. Notifications
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  alertId   String?  @map("alert_id")
+  title     String
+  message   String
+  payload   Json
+  isRead    Boolean  @default(false) @map("is_read")
+  sentAt    DateTime @default(now()) @map("sent_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert Alert? @relation(fields: [alertId], references: [id], onDelete: SetNull)
+
+  @@index([userId, isRead, sentAt])
+  @@map("notifications")
+}
+
+// 11. Settings
+model Settings {
+  id                 String   @id @default(uuid())
+  userId             String   @unique @map("user_id")
+  theme              String   @default("dark")
+  defaultCurrency    String   @default("USD") @map("default_currency")
+  telegramChatId     String?  @map("telegram_chat_id")
+  discordWebhookUrl  String?  @map("discord_webhook_url")
+  emailNotifications Boolean  @default(true) @map("email_notifications")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}
+
+// 12. APIKeys
+model APIKey {
+  id           String    @id @default(uuid())
+  userId       String    @map("user_id")
+  name         String
+  keyHash      String    @unique @map("key_hash")
+  prefix       String
+  rateLimitRpm Int       @default(60) @map("rate_limit_rpm")
+  expiresAt    DateTime? @map("expires_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([keyHash])
+  @@index([userId])
+  @@map("api_keys")
+}
