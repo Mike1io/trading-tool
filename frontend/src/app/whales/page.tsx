@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Fish, Zap } from 'lucide-react';
+import { Fish, Zap, ShieldCheck } from 'lucide-react';
 
 interface HyperPositionItem {
   id: string;
@@ -45,19 +45,44 @@ export default function WhalesPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-tv-border pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-tv-border pb-4">
         <div>
           <h1 className="text-xl font-bold text-tv-heading flex items-center gap-2">
             <Fish className="w-5 h-5 text-tv-purple" />
-            Hyperliquid Whale Position & Liquidation Monitor
+            Hyperliquid Whale Accounts & Position Monitor
           </h1>
           <p className="text-xs text-tv-muted">
-            Real-time indexing of whale positions, leverage, liquidation risk meters, and PnL stored in PostgreSQL.
+            Strictly classified whale accounts (Position $\ge \$250\text{k}$, Vol $\ge \$5\text{M}$, PnL $\ge \$1\text{M}$). Retail trades under $\$50\text{k}$ are ignored.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono bg-tv-card border border-tv-purple/40 px-3 py-1.5 rounded-lg text-tv-purple font-semibold">
           <Zap className="w-4 h-4" />
-          <span>Hyperliquid L1 WebSocket Active</span>
+          <span>Hyperliquid Whale Stream Active</span>
+        </div>
+      </div>
+
+      {/* Qualification Threshold Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+        <div className="bg-tv-card border border-tv-border p-3.5 rounded-xl flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-tv-gold" />
+          <div>
+            <span className="text-tv-muted block text-[10px]">THRESOLD 1</span>
+            <span className="font-bold text-tv-heading text-xs">Position $\ge \$250,000$ USD</span>
+          </div>
+        </div>
+        <div className="bg-tv-card border border-tv-border p-3.5 rounded-xl flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-tv-cyan" />
+          <div>
+            <span className="text-tv-muted block text-[10px]">THRESOLD 2</span>
+            <span className="font-bold text-tv-heading text-xs">Cumulative Volume $\ge \$5,000,000$</span>
+          </div>
+        </div>
+        <div className="bg-tv-card border border-tv-border p-3.5 rounded-xl flex items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-tv-green" />
+          <div>
+            <span className="text-tv-muted block text-[10px]">THRESOLD 3</span>
+            <span className="font-bold text-tv-heading text-xs">Realized PnL $\ge \$1,000,000$</span>
+          </div>
         </div>
       </div>
 
@@ -67,7 +92,7 @@ export default function WhalesPage() {
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-tv-surface text-tv-muted border-b border-tv-border">
               <tr>
-                <th className="p-3.5">Trader Address</th>
+                <th className="p-3.5">Whale Trader Address</th>
                 <th className="p-3.5">Asset</th>
                 <th className="p-3.5">Side / Leverage</th>
                 <th className="p-3.5">Position Size (USD)</th>
@@ -81,13 +106,13 @@ export default function WhalesPage() {
               {loading && positions.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-6 text-center text-tv-muted">
-                    Loading live whale positions from PostgreSQL...
+                    Loading qualified whale positions from PostgreSQL...
                   </td>
                 </tr>
               ) : positions.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-6 text-center text-tv-muted">
-                    No whale positions stored in PostgreSQL yet. Listening to Hyperliquid L1 WebSocket stream...
+                    No qualified whale positions stored in PostgreSQL hyper_whales yet. Streaming Hyperliquid L1...
                   </td>
                 </tr>
               ) : (

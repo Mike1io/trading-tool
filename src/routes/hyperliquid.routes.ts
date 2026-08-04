@@ -5,6 +5,7 @@ const router = Router();
 
 router.get('/positions', HyperliquidController.getPositions);
 router.get('/trades', HyperliquidController.getTrades);
+router.get('/whales', HyperliquidController.getWhales);
 router.get('/summary', HyperliquidController.getMarketSummary);
 router.post('/ingest/mock', HyperliquidController.ingestMockHyperEvent);
 

@@ -128,6 +128,39 @@ export class HyperliquidController {
     }
   }
 
+  static async getWhales(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+      const skip = (page - 1) * limit;
+
+      const [whales, total] = await Promise.all([
+        prisma.hyperWhale.findMany({
+          where: { isWhale: true },
+          skip,
+          take: limit,
+          orderBy: { maxPositionSizeUsd: 'desc' },
+        }),
+        prisma.hyperWhale.count({ where: { isWhale: true } }),
+      ]);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          whales,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages: Math.ceil(total / limit),
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async ingestMockHyperEvent(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const {
@@ -161,7 +194,7 @@ export class HyperliquidController {
 
       res.status(201).json({
         status: 'success',
-        message: 'Mock Hyperliquid event generated successfully',
+        message: 'Live Hyperliquid event processed',
         data: event,
       });
     } catch (error) {

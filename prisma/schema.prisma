@@ -328,3 +328,20 @@ model APIKey {
   @@index([userId])
   @@map("api_keys")
 }
+
+// 13. HyperWhales (Whale Accounts Directory)
+model HyperWhale {
+  id                  String   @id @default(uuid())
+  userAddress         String   @unique @map("user_address")
+  cumulativeVolumeUsd Decimal  @default(0.0) @map("cumulative_volume_usd") @db.Decimal(18, 2)
+  realizedPnlUsd      Decimal  @default(0.0) @map("realized_pnl_usd") @db.Decimal(18, 2)
+  maxPositionSizeUsd  Decimal  @default(0.0) @map("max_position_size_usd") @db.Decimal(18, 2)
+  isWhale             Boolean  @default(true) @map("is_whale")
+  qualificationReason String   @default("POSITION_SIZE_GE_250K") @map("qualification_reason")
+  firstSeenAt         DateTime @default(now()) @map("first_seen_at")
+  lastActiveAt        DateTime @updatedAt @map("last_active_at")
+
+  @@index([userAddress])
+  @@index([isWhale, maxPositionSizeUsd])
+  @@map("hyper_whales")
+}
