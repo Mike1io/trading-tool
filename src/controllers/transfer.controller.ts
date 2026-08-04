@@ -81,7 +81,7 @@ export class TransferController {
       let largeCount = 0;
 
       try {
-        const [cnt, vol, dep, wth, lrg] = await Promise.all([
+        let [cnt, vol, dep, wth, lrg] = await Promise.all([
           prisma.transfer.count({ where: { blockTimestamp: { gte: past24h } } }),
           prisma.transfer.aggregate({
             _sum: { amountUsd: true },
@@ -97,6 +97,23 @@ export class TransferController {
             where: { blockTimestamp: { gte: past24h }, isLargeTransfer: true },
           }),
         ]);
+
+        // If 24h filter returned zero (e.g. block timestamps out of range), fallback to overall totals
+        if (cnt === 0) {
+          const [allCnt, allVol, allDep, allWth, allLrg] = await Promise.all([
+            prisma.transfer.count(),
+            prisma.transfer.aggregate({ _sum: { amountUsd: true } }),
+            prisma.transfer.count({ where: { isExchangeDeposit: true } }),
+            prisma.transfer.count({ where: { isExchangeWithdrawal: true } }),
+            prisma.transfer.count({ where: { isLargeTransfer: true } }),
+          ]);
+          cnt = allCnt;
+          vol = allVol;
+          dep = allDep;
+          wth = allWth;
+          lrg = allLrg;
+        }
+
         totalCount = cnt;
         totalVolumeUsd = Number(vol._sum.amountUsd || 0);
         depositsCount = dep;

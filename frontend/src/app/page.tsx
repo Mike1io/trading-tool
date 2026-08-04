@@ -18,6 +18,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+import { useWebSocket } from '@/hooks/useWebSocket';
+
 interface TransferItem {
   id: string;
   chain: string;
@@ -42,6 +44,7 @@ interface HyperPositionItem {
 }
 
 export default function DashboardPage() {
+  const { lastMessage, isConnected } = useWebSocket();
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [hyperPositions, setHyperPositions] = useState<HyperPositionItem[]>([]);
   const [stats, setStats] = useState({
@@ -89,6 +92,29 @@ export default function DashboardPage() {
     const interval = setInterval(loadLiveData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Listen for WebSocket real-time live events
+  useEffect(() => {
+    if (!lastMessage) return;
+
+    if (lastMessage.type === 'TRANSFER_NEW' && lastMessage.data) {
+      const tx = lastMessage.data;
+      setTransfers((prev) => [tx, ...prev.slice(0, 14)]);
+      setStats((prev) => ({
+        ...prev,
+        totalVolumeUsd: prev.totalVolumeUsd + Number(tx.amountUsd || 0),
+        alertCount: prev.alertCount + 1,
+      }));
+    }
+
+    if (lastMessage.type === 'HYPER_POSITION' && lastMessage.data) {
+      const pos = lastMessage.data;
+      setHyperPositions((prev) => {
+        const filtered = prev.filter((p) => !(p.userAddress === pos.userAddress && p.coin === pos.coin));
+        return [pos, ...filtered.slice(0, 9)];
+      });
+    }
+  }, [lastMessage]);
 
   return (
     <div className="space-y-6">

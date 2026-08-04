@@ -1,12 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Bell, Wifi, WifiOff, ShieldCheck, Flame } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 export function Header() {
   const { isConnected } = useWebSocket();
   const [unreadNotifications] = useState(3);
+  const [prices, setPrices] = useState({
+    BTC: { price: '0', change: 0 },
+    ETH: { price: '0', change: 0 },
+    SOL: { price: '0', change: 0 },
+  });
+
+  useEffect(() => {
+    async function fetchLivePrices() {
+      try {
+        const res = await fetch(
+          'https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22SOLUSDT%22%5D'
+        );
+        if (res.ok) {
+          const data = await res.json();
+          const pMap: any = {};
+          for (const item of data) {
+            const sym = item.symbol.replace('USDT', '');
+            pMap[sym] = {
+              price: Number(item.lastPrice).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }),
+              change: Number(Number(item.priceChangePercent).toFixed(2)),
+            };
+          }
+          setPrices((prev) => ({ ...prev, ...pMap }));
+        }
+      } catch (err) {
+        console.error('Error fetching live crypto prices:', err);
+      }
+    }
+
+    fetchLivePrices();
+    const interval = setInterval(fetchLivePrices, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <header className="h-16 bg-tv-card border-b border-tv-border px-6 flex items-center justify-between sticky top-0 z-20 backdrop-blur-md bg-tv-card/90">
@@ -28,18 +64,24 @@ export function Header() {
         <div className="hidden lg:flex items-center gap-4 text-xs font-mono border-r border-tv-border pr-5">
           <div className="flex items-center gap-1.5">
             <span className="text-tv-muted">ETH:</span>
-            <span className="font-semibold text-tv-heading">$3,485.20</span>
-            <span className="text-tv-green text-[10px]">+2.4%</span>
+            <span className="font-semibold text-tv-heading">${prices.ETH.price}</span>
+            <span className={`text-[10px] font-bold ${prices.ETH.change >= 0 ? 'text-tv-green' : 'text-tv-red'}`}>
+              {prices.ETH.change >= 0 ? `+${prices.ETH.change}%` : `${prices.ETH.change}%`}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-tv-muted">BTC:</span>
-            <span className="font-semibold text-tv-heading">$67,920.00</span>
-            <span className="text-tv-green text-[10px]">+1.8%</span>
+            <span className="font-semibold text-tv-heading">${prices.BTC.price}</span>
+            <span className={`text-[10px] font-bold ${prices.BTC.change >= 0 ? 'text-tv-green' : 'text-tv-red'}`}>
+              {prices.BTC.change >= 0 ? `+${prices.BTC.change}%` : `${prices.BTC.change}%`}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-tv-muted">SOL:</span>
-            <span className="font-semibold text-tv-heading">$184.50</span>
-            <span className="text-tv-red text-[10px]">-0.6%</span>
+            <span className="font-semibold text-tv-heading">${prices.SOL.price}</span>
+            <span className={`text-[10px] font-bold ${prices.SOL.change >= 0 ? 'text-tv-green' : 'text-tv-red'}`}>
+              {prices.SOL.change >= 0 ? `+${prices.SOL.change}%` : `${prices.SOL.change}%`}
+            </span>
           </div>
         </div>
 
