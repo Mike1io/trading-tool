@@ -28,18 +28,25 @@ export class HyperliquidController {
       if (isWhale !== undefined) where.isWhale = isWhale;
       if (address) where.userAddress = { equals: address, mode: 'insensitive' };
 
-      const [positions, total] = await Promise.all([
-        prisma.hyperPosition.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { updatedAt: 'desc' },
-          include: {
-            wallet: { include: { walletLabels: true } },
-          },
-        }),
-        prisma.hyperPosition.count({ where }),
-      ]);
+      let positions: any[] = [];
+      let total = 0;
+
+      try {
+        [positions, total] = await Promise.all([
+          prisma.hyperPosition.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { updatedAt: 'desc' },
+            include: {
+              wallet: { include: { walletLabels: true } },
+            },
+          }),
+          prisma.hyperPosition.count({ where }),
+        ]);
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getPositions:', dbErr?.message || dbErr);
+      }
 
       res.status(200).json({
         status: 'success',
@@ -71,18 +78,25 @@ export class HyperliquidController {
       if (coin) where.coin = coin;
       if (address) where.userAddress = { equals: address, mode: 'insensitive' };
 
-      const [trades, total] = await Promise.all([
-        prisma.hyperTrade.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { tradeTimestamp: 'desc' },
-          include: {
-            wallet: { include: { walletLabels: true } },
-          },
-        }),
-        prisma.hyperTrade.count({ where }),
-      ]);
+      let trades: any[] = [];
+      let total = 0;
+
+      try {
+        [trades, total] = await Promise.all([
+          prisma.hyperTrade.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { tradeTimestamp: 'desc' },
+            include: {
+              wallet: { include: { walletLabels: true } },
+            },
+          }),
+          prisma.hyperTrade.count({ where }),
+        ]);
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getTrades:', dbErr?.message || dbErr);
+      }
 
       res.status(200).json({
         status: 'success',
@@ -103,24 +117,35 @@ export class HyperliquidController {
 
   static async getMarketSummary(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const [totalActivePositions, whalePositionsCount, topCoins] = await Promise.all([
-        prisma.hyperPosition.count(),
-        prisma.hyperPosition.count({ where: { isWhale: true } }),
-        prisma.hyperPosition.groupBy({
-          by: ['coin'],
-          _count: { _all: true },
-          _sum: { unrealizedPnl: true },
-          orderBy: { _count: { coin: 'desc' } },
-          take: 5,
-        }),
-      ]);
+      let totalActivePositions = 0;
+      let whalePositionsCount = 0;
+      let topCoinsSummary: any[] = [];
+
+      try {
+        const [posCnt, whlCnt, topCoins] = await Promise.all([
+          prisma.hyperPosition.count(),
+          prisma.hyperPosition.count({ where: { isWhale: true } }),
+          prisma.hyperPosition.groupBy({
+            by: ['coin'],
+            _count: { _all: true },
+            _sum: { unrealizedPnl: true },
+            orderBy: { _count: { coin: 'desc' } },
+            take: 5,
+          }),
+        ]);
+        totalActivePositions = posCnt;
+        whalePositionsCount = whlCnt;
+        topCoinsSummary = topCoins;
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getMarketSummary:', dbErr?.message || dbErr);
+      }
 
       res.status(200).json({
         status: 'success',
         data: {
           totalActivePositions,
           whalePositionsCount,
-          topCoinsSummary: topCoins,
+          topCoinsSummary,
         },
       });
     } catch (error) {
@@ -134,15 +159,22 @@ export class HyperliquidController {
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
       const skip = (page - 1) * limit;
 
-      const [whales, total] = await Promise.all([
-        prisma.hyperWhale.findMany({
-          where: { isWhale: true },
-          skip,
-          take: limit,
-          orderBy: { maxPositionSizeUsd: 'desc' },
-        }),
-        prisma.hyperWhale.count({ where: { isWhale: true } }),
-      ]);
+      let whales: any[] = [];
+      let total = 0;
+
+      try {
+        [whales, total] = await Promise.all([
+          prisma.hyperWhale.findMany({
+            where: { isWhale: true },
+            skip,
+            take: limit,
+            orderBy: { maxPositionSizeUsd: 'desc' },
+          }),
+          prisma.hyperWhale.count({ where: { isWhale: true } }),
+        ]);
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getWhales:', dbErr?.message || dbErr);
+      }
 
       res.status(200).json({
         status: 'success',

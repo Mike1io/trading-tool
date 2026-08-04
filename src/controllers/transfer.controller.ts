@@ -26,24 +26,31 @@ export class TransferController {
         ];
       }
 
-      const [transfers, total] = await Promise.all([
-        prisma.transfer.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { blockTimestamp: 'desc' },
-          include: {
-            fromWallet: { include: { walletLabels: true } },
-            toWallet: { include: { walletLabels: true } },
-          },
-        }),
-        prisma.transfer.count({ where }),
-      ]);
+      let transfers: any[] = [];
+      let total = 0;
+
+      try {
+        [transfers, total] = await Promise.all([
+          prisma.transfer.findMany({
+            where,
+            skip,
+            take: limit,
+            orderBy: { blockTimestamp: 'desc' },
+            include: {
+              fromWallet: { include: { walletLabels: true } },
+              toWallet: { include: { walletLabels: true } },
+            },
+          }),
+          prisma.transfer.count({ where }),
+        ]);
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getTransfers:', dbErr?.message || dbErr);
+      }
 
       // Convert BigInt blockNumbers to strings for clean JSON serialization
       const formattedTransfers = transfers.map((tx) => ({
         ...tx,
-        blockNumber: tx.blockNumber.toString(),
+        blockNumber: tx.blockNumber ? tx.blockNumber.toString() : '0',
       }));
 
       res.status(200).json({
@@ -67,29 +74,44 @@ export class TransferController {
     try {
       const past24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-      const [totalCount, totalVolume, depositsCount, withdrawalsCount, largeCount] = await Promise.all([
-        prisma.transfer.count({ where: { blockTimestamp: { gte: past24h } } }),
-        prisma.transfer.aggregate({
-          _sum: { amountUsd: true },
-          where: { blockTimestamp: { gte: past24h } },
-        }),
-        prisma.transfer.count({
-          where: { blockTimestamp: { gte: past24h }, isExchangeDeposit: true },
-        }),
-        prisma.transfer.count({
-          where: { blockTimestamp: { gte: past24h }, isExchangeWithdrawal: true },
-        }),
-        prisma.transfer.count({
-          where: { blockTimestamp: { gte: past24h }, isLargeTransfer: true },
-        }),
-      ]);
+      let totalCount = 0;
+      let totalVolumeUsd = 0;
+      let depositsCount = 0;
+      let withdrawalsCount = 0;
+      let largeCount = 0;
+
+      try {
+        const [cnt, vol, dep, wth, lrg] = await Promise.all([
+          prisma.transfer.count({ where: { blockTimestamp: { gte: past24h } } }),
+          prisma.transfer.aggregate({
+            _sum: { amountUsd: true },
+            where: { blockTimestamp: { gte: past24h } },
+          }),
+          prisma.transfer.count({
+            where: { blockTimestamp: { gte: past24h }, isExchangeDeposit: true },
+          }),
+          prisma.transfer.count({
+            where: { blockTimestamp: { gte: past24h }, isExchangeWithdrawal: true },
+          }),
+          prisma.transfer.count({
+            where: { blockTimestamp: { gte: past24h }, isLargeTransfer: true },
+          }),
+        ]);
+        totalCount = cnt;
+        totalVolumeUsd = Number(vol._sum.amountUsd || 0);
+        depositsCount = dep;
+        withdrawalsCount = wth;
+        largeCount = lrg;
+      } catch (dbErr: any) {
+        console.warn('⚠️ Database query warning in getTransferStats:', dbErr?.message || dbErr);
+      }
 
       res.status(200).json({
         status: 'success',
         data: {
           period: '24h',
           totalTransfers: totalCount,
-          totalVolumeUsd: totalVolume._sum.amountUsd || 0,
+          totalVolumeUsd,
           exchangeDeposits: depositsCount,
           exchangeWithdrawals: withdrawalsCount,
           largeTransfers: largeCount,
