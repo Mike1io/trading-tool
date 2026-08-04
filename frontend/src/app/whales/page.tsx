@@ -52,7 +52,7 @@ export default function WhalesPage() {
             Hyperliquid Whale Accounts & Position Monitor
           </h1>
           <p className="text-xs text-tv-muted">
-            Strictly classified whale accounts (Position $\ge \$250\text{k}$, Vol $\ge \$5\text{M}$, PnL $\ge \$1\text{M}$). Retail trades under $\$50\text{k}$ are ignored.
+            Strictly classified whale accounts (Position &ge; $250k, Vol &ge; $5M, PnL &ge; $1M). Retail trades under $50k are ignored.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-mono bg-tv-card border border-tv-purple/40 px-3 py-1.5 rounded-lg text-tv-purple font-semibold">
